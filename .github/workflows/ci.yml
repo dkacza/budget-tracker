@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+
+      - name: Run tests
+        working-directory: backend
+        run: go test ./...
+
+  build-and-push:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute build metadata
+        id: meta
+        run: |
+          echo "version=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/budget-tracker-backend:${{ steps.meta.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/budget-tracker-backend:latest
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            BUILD_TIME=${{ steps.meta.outputs.build_time }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/budget-tracker-frontend:${{ steps.meta.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/budget-tracker-frontend:latest
+
+  update-manifests:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Compute image tag
+        id: meta
+        run: echo "version=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout git-ops-lab
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/git-ops-lab
+          token: ${{ secrets.GIT_OPS_LAB_PAT }}
+
+      - name: Update image tags
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          for dir in argo-cd/manifests flux/manifests; do
+            [ -f "${dir}/backend-deployment.yaml" ] || continue
+            sed -i "s|ghcr.io/${OWNER}/budget-tracker-backend:.*|ghcr.io/${OWNER}/budget-tracker-backend:${VERSION}|g" \
+              "${dir}/backend-deployment.yaml"
+            sed -i "s|ghcr.io/${OWNER}/budget-tracker-frontend:.*|ghcr.io/${OWNER}/budget-tracker-frontend:${VERSION}|g" \
+              "${dir}/frontend-deployment.yaml"
+          done
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add argo-cd/manifests flux/manifests
+          git commit -m "ci: update image tags to ${{ steps.meta.outputs.version }}"
+          git push
