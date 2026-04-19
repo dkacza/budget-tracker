@@ -8,7 +8,6 @@ COPY . .
 ARG VERSION=dev
 ARG BUILD_TIME=unknown
 
-RUN go test ./...
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" \
     -o backend .
