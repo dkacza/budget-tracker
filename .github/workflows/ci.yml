@@ -92,18 +92,15 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           OWNER: ${{ github.repository_owner }}
         run: |
-          for dir in argo-cd/manifests flux/manifests; do
-            [ -f "${dir}/backend-deployment.yaml" ] || continue
-            sed -i "s|ghcr.io/${OWNER}/budget-tracker-backend:.*|ghcr.io/${OWNER}/budget-tracker-backend:${VERSION}|g" \
-              "${dir}/backend-deployment.yaml"
-            sed -i "s|ghcr.io/${OWNER}/budget-tracker-frontend:.*|ghcr.io/${OWNER}/budget-tracker-frontend:${VERSION}|g" \
-              "${dir}/frontend-deployment.yaml"
-          done
+          sed -i "s|ghcr.io/${OWNER}/budget-tracker-backend:.*|ghcr.io/${OWNER}/budget-tracker-backend:${VERSION}|g" \
+            argo-cd/manifests/backend-deployment.yaml
+          sed -i "s|ghcr.io/${OWNER}/budget-tracker-frontend:.*|ghcr.io/${OWNER}/budget-tracker-frontend:${VERSION}|g" \
+            argo-cd/manifests/frontend-deployment.yaml
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add argo-cd/manifests flux/manifests
+          git add argo-cd/manifests
           git commit -m "ci: update image tags to ${{ steps.meta.outputs.version }}"
           git push
