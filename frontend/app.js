@@ -187,9 +187,19 @@ function today() {
   return new Date().toISOString().split('T')[0];
 }
 
+async function loadVersion() {
+  try {
+    const d = await apiFetch('/api/data');
+    document.getElementById('version-label').textContent = `v${d.version} · ${d.buildTime}`;
+  } catch {
+    document.getElementById('version-label').textContent = 'backend unreachable';
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('date').value = today();
   document.getElementById('transaction-form').addEventListener('submit', addTransaction);
   document.getElementById('limit-form').addEventListener('submit', setLimit);
+  loadVersion();
   init();
 });

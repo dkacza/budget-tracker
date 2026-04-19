@@ -288,16 +288,6 @@
 </main>
 
 <script src="app.js"></script>
-<script>
-  fetch((window.BACKEND_URL || 'http://localhost:8080') + '/api/data')
-    .then(r => r.json())
-    .then(d => {
-      document.getElementById('version-label').textContent = `v${d.version} · ${d.buildTime}`;
-    })
-    .catch(() => {
-      document.getElementById('version-label').textContent = 'backend unreachable';
-    });
-</script>
 
 </body>
 </html>
