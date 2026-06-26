@@ -116,6 +116,7 @@ jobs:
           git push
 
       - name: Trigger Jenkins deploy
+        if: vars.SKIP_JENKINS != 'true'
         run: |
           curl -fsS -X POST \
             "${{ secrets.JENKINS_URL }}/job/budget-tracker-deploy/build" \
